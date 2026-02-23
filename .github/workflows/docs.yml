@@ -1,0 +1,46 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: "deploy: docs"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # {{DOCS_SETUP}}
+      # Language-specific setup for documentation tools.
+      # Example (Python):
+      #   - name: Set up Python
+      #     uses: wphillipmoore/standard-actions/actions/python/setup@develop
+      #     with:
+      #       python-version: "3.14"
+      #       cache-prefix: "uv-docs"
+      #   - name: Install dependencies
+      #     run: uv sync --frozen --group docs
+
+      - name: Deploy docs
+        uses: wphillipmoore/standard-actions/actions/docs-deploy@develop
+        with:
+          version-command: "{{DOCS_VERSION_COMMAND}}"
+          # Example (Python):
+          #   uv run python -c "from importlib.metadata import version; v=version('pymqrest'); print('.'.join(v.split('.')[:2]))"
+          mike-command: "{{MIKE_COMMAND}}"
+          # Example (Python): uv run mike
+          checkout-common: "true"

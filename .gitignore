@@ -1,0 +1,27 @@
+# === Shared entries (all mq-rest-admin repos) ===
+
+# Editor and IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation build output
+docs/_build/
+docs/site/site/
+/site
+
+# Coverage reports
+coverage.out
+coverage.xml
+htmlcov/
+.coverage
+.coverage.*
+
+# Common repo symlink (MkDocs shared fragments)
+.mq-rest-admin-common
+
+# === Language-specific entries ===
+# Add entries for your language below this line.

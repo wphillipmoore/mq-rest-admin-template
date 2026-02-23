@@ -1,0 +1,113 @@
+name: Publish release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  attestations: write
+  contents: write
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: "publish: release"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # {{VERSION_EXTRACTION}}
+      # Extract version from language-specific config file.
+      # Example (Python):
+      #   - name: Extract version
+      #     id: version
+      #     run: |
+      #       version=$(python3 -c "
+      #       import tomllib
+      #       from pathlib import Path
+      #       print(tomllib.loads(Path('pyproject.toml').read_text())['project']['version'])
+      #       ")
+      #       echo "version=$version" >> "$GITHUB_OUTPUT"
+      #       echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      # Example (Go):
+      #   - name: Extract version
+      #     id: version
+      #     run: |
+      #       version=$(grep -oP 'Version\s*=\s*"\K[^"]+' pkg/version.go)
+      #       echo "version=$version" >> "$GITHUB_OUTPUT"
+      #       echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      # {{REGISTRY_CHECK}}
+      # Check if version already published to language-specific registry.
+
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # {{BUILD_STEPS}}
+      # Language-specific build commands.
+
+      # {{PUBLISH_STEPS}}
+      # Language-specific publish to registry.
+
+      - name: Generate SBOM
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: wphillipmoore/standard-actions/actions/security/trivy@develop
+        with:
+          scan-type: sbom
+          output-file: "dist/{{PACKAGE_NAME}}-${{ steps.version.outputs.version }}.cdx.json"
+
+      - name: Tag and release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: wphillipmoore/standard-actions/actions/publish/tag-and-release@develop
+        with:
+          version: ${{ steps.version.outputs.version }}
+          release-title: "{{PACKAGE_NAME}}"
+          release-notes: |
+            ## Installation
+
+            ```bash
+            {{INSTALL_COMMAND}}
+            ```
+
+            ## Links
+
+            - [Documentation](https://wphillipmoore.github.io/{{REPO_NAME}}/)
+          release-artifacts: dist/*
+
+      - name: Generate app token for bump PR
+        if: steps.tag_check.outputs.exists == 'false'
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Version bump PR
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: wphillipmoore/standard-actions/actions/publish/version-bump-pr@develop
+        with:
+          current-version: ${{ steps.version.outputs.version }}
+          version-file: "{{VERSION_FILE}}"
+          version-regex: "{{VERSION_REGEX}}"
+          version-replacement: "{{VERSION_REPLACEMENT}}"
+          develop-version-command: "{{DEVELOP_VERSION_CMD}}"
+          app-token: ${{ steps.app-token.outputs.token }}
+          # Optional:
+          # post-bump-command: "..."
+          # extra-files: "..."
+          # pr-body-extra: "..."
