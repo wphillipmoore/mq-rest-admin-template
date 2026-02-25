@@ -1,0 +1,27 @@
+name: CI (push)
+
+on:
+  push:
+    branches:
+      - "feature/**"
+      - "bugfix/**"
+      - "hotfix/**"
+      - "chore/**"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      security-events: write
+    with:
+      versions: '{{LATEST_VERSION_JSON}}'
+      # Example: '["3.14"]' (Python), '["1.26"]' (Go), '["3.4"]' (Ruby), '["21"]' (Java)
+      integration-matrix: '{{LATEST_INTEGRATION_MATRIX_JSON}}'
+      # Example: '[{"version":"3.4","project-suffix":"3-4","qm1-rest-port":"9463","qm2-rest-port":"9464"}]'
+      run-security: "false"
+      run-release-gates: "false"

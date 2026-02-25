@@ -63,11 +63,59 @@ export PATH="../standard-tooling/.venv/bin:../standard-tooling/scripts/bin:$PATH
 git config core.hooksPath ../standard-tooling/scripts/lib/git-hooks               # Enable git hooks
 ```
 
+### Three-Tier CI Model
+
+Testing is split across three tiers with increasing scope and cost:
+
+**Tier 1 — Local pre-commit (seconds):** Fast smoke tests in a single
+container. Run before every commit. No MQ, no matrix.
+
+```bash
+./scripts/dev/test.sh        # Tests in dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}
+./scripts/dev/lint.sh        # Lint checks in dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}
+./scripts/dev/audit.sh       # Security audit in dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}
+```
+
+**Tier 2 — Push CI (~3-5 min):** Triggers automatically on push to
+`feature/**`, `bugfix/**`, `hotfix/**`, `chore/**`. Single language version
+({{LATEST_VERSION}}), includes integration tests, no security scanners or
+release gates. Workflow: `.github/workflows/ci-push.yml` (calls `ci.yml`).
+
+**Tier 3 — PR CI (~8-10 min):** Triggers on `pull_request`. Full version
+matrix ({{LANGUAGE_VERSIONS}}), all integration tests, security scanners
+(CodeQL, Trivy, Semgrep), standards compliance, and release gates. Workflow:
+`.github/workflows/ci.yml`.
+
 ### Environment Setup
 
 ```bash
 {{ENV_SETUP_COMMANDS}}
 ```
+
+### Docker-First Testing
+
+All tests can run inside containers — Docker is the only host prerequisite.
+The `dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}` image is built from
+`../standard-tooling/docker/{{LANGUAGE_ID}}/`.
+
+```bash
+# Build the dev image (one-time, from standard-tooling)
+cd ../standard-tooling && docker/build.sh
+
+# Run tests in container
+./scripts/dev/test.sh
+
+# Run lint checks in container
+./scripts/dev/lint.sh
+
+# Run security audit in container
+./scripts/dev/audit.sh
+```
+
+Environment overrides:
+
+- `DOCKER_DEV_IMAGE` — override the container image (default: `dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}`)
+- `DOCKER_TEST_CMD` — override the test command
 
 ### Validation
 
