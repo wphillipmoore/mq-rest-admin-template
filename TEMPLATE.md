@@ -35,6 +35,13 @@ Search for `{{` across all files and replace each placeholder:
 | `{{TEST_COMMAND}}` | CI test command | `uv run pytest --cov=...` | `go test -race ./...` |
 | `{{CODEQL_LANGUAGE}}` | CodeQL language identifier | `python` | `go` |
 | `{{SEMGREP_LANGUAGE}}` | Semgrep language identifier | `python` | `golang` |
+| `{{LATEST_VERSION}}` | Latest/default language version for Tier 1/2 | `3.14` | `1.26` |
+| `{{LATEST_VERSION_JSON}}` | JSON array with single latest version | `'["3.14"]'` | `'["1.26"]'` |
+| `{{LATEST_INTEGRATION_MATRIX_JSON}}` | JSON integration matrix for push CI | *(single-entry matrix)* | *(single-entry matrix)* |
+| `{{INTEGRATION_MATRIX_DEFAULT}}` | Full integration matrix default for PR CI | *(full matrix JSON)* | *(full matrix JSON)* |
+| `{{DOCKER_TEST_COMMAND}}` | Test command for dev container | `uv sync && uv run pytest` | `go test ./...` |
+| `{{DOCKER_LINT_COMMAND}}` | Lint command for dev container | `uv sync && uv run ruff check` | `golangci-lint run ./...` |
+| `{{DOCKER_AUDIT_COMMAND}}` | Audit command for dev container | `uv sync && uv run pip-audit` | `govulncheck ./...` |
 | `{{VERSION_EXTRACTION}}` | Publish workflow version extraction | *(language-specific)* | *(language-specific)* |
 | `{{REGISTRY_CHECK}}` | Check if version exists in registry | *(language-specific)* | *(language-specific)* |
 | `{{BUILD_STEPS}}` | Publish workflow build steps | `uv build` | `go build` |

@@ -1,7 +1,31 @@
-name: CI - Test and Validate
+name: CI
 
 on:
   pull_request:
+  workflow_call:
+    inputs:
+      versions:
+        description: >-
+          JSON array of language versions for the unit-test matrix.
+          Default (empty) runs the full matrix.
+        type: string
+        default: ""
+      integration-matrix:
+        description: >-
+          JSON array of objects for the integration-test matrix.
+          Default (empty) runs the full matrix with per-version ports.
+        type: string
+        default: ""
+      run-security:
+        description: >-
+          Run security scanner jobs (set to 'false' to skip).
+        type: string
+        default: "true"
+      run-release-gates:
+        description: >-
+          Run release gate checks (set to 'false' to skip).
+        type: string
+        default: "true"
 
 permissions:
   contents: read
@@ -11,29 +35,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  docs-only:
-    name: "ci: docs-only"
-    runs-on: ubuntu-latest
-    outputs:
-      docs-only: ${{ steps.detect.outputs.docs-only }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
 
-      - name: Detect docs-only changes
-        id: detect
-        uses: wphillipmoore/standard-actions/actions/docs-only-detect@develop
+  # ---------------------------------------------------------------------------
+  # Security and standards (shared reusable workflow)
+  # ---------------------------------------------------------------------------
+  security-and-standards:
+    name: "security-and-standards"
+    if: ${{ inputs.run-security != 'false' }}
+    uses: wphillipmoore/standard-actions/.github/workflows/ci-security.yml@develop
+    with:
+      language: "{{CODEQL_LANGUAGE}}"
+      # If Semgrep uses a different language name (e.g., "golang" for Go),
+      # uncomment and set:
+      # semgrep-language: "{{SEMGREP_LANGUAGE}}"
+    permissions:
+      contents: read
+      security-events: write
 
-  standards-compliance:
-    name: "ci: standards-compliance"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Validate standards
-        uses: wphillipmoore/standard-actions/actions/standards-compliance@develop
-
+  # ---------------------------------------------------------------------------
+  # Dependency audit
+  # ---------------------------------------------------------------------------
   dependency-audit:
     name: "ci: dependency-audit"
     runs-on: ubuntu-latest
@@ -52,6 +73,16 @@ jobs:
       #     uses: actions/setup-go@v6
       #     with:
       #       go-version: "1.26"
+      # Example (Ruby — container):
+      #   container:
+      #     image: ghcr.io/wphillipmoore/dev-ruby:3.4
+      # Example (Java):
+      #   - name: Set up Java
+      #     uses: actions/setup-java@v5
+      #     with:
+      #       distribution: temurin
+      #       java-version: "21"
+      #       cache: maven
 
       # {{AUDIT_COMMANDS}}
       # Example (Python):
@@ -59,18 +90,26 @@ jobs:
       #     run: uv sync --frozen --group dev
       #   - name: Run pip-audit
       #     run: uv run pip-audit -r requirements.txt -r requirements-dev.txt
-      #   - name: Run pip-licenses
-      #     run: uv run pip-licenses --allow-only="..."
       # Example (Go):
-      #   - name: Install govulncheck
-      #     run: go install golang.org/x/vuln/cmd/govulncheck@latest
       #   - name: Run govulncheck
       #     run: govulncheck ./...
       #   - name: Run license compliance check
       #     run: go-licenses check ./... --allowed_licenses=...
+      # Example (Ruby):
+      #   - name: Run bundle-audit
+      #     run: bundle exec bundle-audit check --update
+      # Example (Java):
+      #   - name: Verify dependency resolution
+      #     run: ./mvnw dependency:tree -B -q
+      #   - name: Run license compliance check
+      #     run: ./mvnw license:add-third-party ...
 
+  # ---------------------------------------------------------------------------
+  # Release gates
+  # ---------------------------------------------------------------------------
   release-gates:
     name: "release: gates"
+    if: ${{ inputs.run-release-gates != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - name: Skip on non-PR events
@@ -93,32 +132,35 @@ jobs:
           #   head: python3 -c "import tomllib; ..."
           #   main: git show origin/main:pyproject.toml | python3 -c "..."
           # Example (Go):
-          #   head: grep -oP 'Version\s*=\s*"\K[^"]+' pkg/version.go
-          #   main: git show origin/main:pkg/version.go | grep -oP '...'
+          #   head: grep -oP 'Version\s*=\s*"\K[^"]+' mqrestadmin/version.go
+          #   main: git show origin/main:mqrestadmin/version.go | grep -oP '...'
 
+  # ---------------------------------------------------------------------------
+  # Unit tests — matrix over language versions
+  # ---------------------------------------------------------------------------
   test-and-validate:
-    name: "test: unit"
+    name: "test: unit (${{ matrix.version }})"
     runs-on: ubuntu-latest
-    needs: docs-only
     strategy:
+      fail-fast: false
       matrix:
-        # {{LANGUAGE_VERSIONS}}
-        # Example (Python): python-version: ["3.12", "3.13", "3.14"]
-        # Example (Go):     go-version: ["1.25", "1.26"]
-        version: ["placeholder"]
+        version: ${{ fromJSON(inputs.versions || '{{LANGUAGE_VERSIONS}}') }}
+        # Example: '["3.12", "3.13", "3.14"]' (Python)
+        # Example: '["1.25", "1.26"]' (Go)
+        # Example: '["3.2", "3.3", "3.4"]' (Ruby)
+        # Example: '["17", "21", "25-ea"]' (Java)
+
+    # For container-based execution (Ruby, Python), uncomment:
+    # container:
+    #   image: ghcr.io/wphillipmoore/dev-{{LANGUAGE_ID}}:${{ matrix.version }}
 
     steps:
-      - name: Docs-only short-circuit
-        if: needs.docs-only.outputs.docs-only == 'true'
-        run: echo "Docs-only changes detected; skipping test-and-validate."
-
       - name: Checkout code
-        if: needs.docs-only.outputs.docs-only != 'true'
         uses: actions/checkout@v6
 
-      - name: Fetch base branch for version checks
-        if: github.event_name == 'pull_request' && needs.docs-only.outputs.docs-only != 'true'
-        run: git fetch origin ${{ github.base_ref }} --depth=1
+      # For container-based jobs, add after checkout:
+      # - name: Mark workspace safe for git
+      #   run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       # {{SETUP_STEPS}}
       # Language-specific setup (runtime, dependencies, tools)
@@ -129,104 +171,35 @@ jobs:
       # {{TEST_COMMAND}}
       # Language-specific test runner with coverage
 
-  codeql:
-    name: "security: codeql"
-    runs-on: ubuntu-latest
-    needs: docs-only
-    permissions:
-      security-events: write
-    steps:
-      - name: Docs-only short-circuit
-        if: needs.docs-only.outputs.docs-only == 'true'
-        run: echo "Docs-only changes detected; skipping CodeQL."
-
-      - name: Checkout code
-        if: needs.docs-only.outputs.docs-only != 'true'
-        uses: actions/checkout@v6
-
-      - name: Run CodeQL analysis
-        if: needs.docs-only.outputs.docs-only != 'true'
-        uses: wphillipmoore/standard-actions/actions/security/codeql@develop
-        with:
-          language: "{{CODEQL_LANGUAGE}}"
-          # python, go, java, ruby, etc.
-
-  trivy:
-    name: "security: trivy"
-    runs-on: ubuntu-latest
-    needs: docs-only
-    permissions:
-      security-events: write
-    steps:
-      - name: Docs-only short-circuit
-        if: needs.docs-only.outputs.docs-only == 'true'
-        run: echo "Docs-only changes detected; skipping Trivy."
-
-      - name: Checkout code
-        if: needs.docs-only.outputs.docs-only != 'true'
-        uses: actions/checkout@v6
-
-      - name: Run Trivy vulnerability scan
-        if: needs.docs-only.outputs.docs-only != 'true'
-        uses: wphillipmoore/standard-actions/actions/security/trivy@develop
-        with:
-          scan-type: fs
-
-  semgrep:
-    name: "security: semgrep"
-    runs-on: ubuntu-latest
-    needs: docs-only
-    permissions:
-      security-events: write
-    steps:
-      - name: Docs-only short-circuit
-        if: needs.docs-only.outputs.docs-only == 'true'
-        run: echo "Docs-only changes detected; skipping Semgrep."
-
-      - name: Checkout code
-        if: needs.docs-only.outputs.docs-only != 'true'
-        uses: actions/checkout@v6
-
-      - name: Run Semgrep SAST scan
-        if: needs.docs-only.outputs.docs-only != 'true'
-        uses: wphillipmoore/standard-actions/actions/security/semgrep@develop
-        with:
-          language: "{{SEMGREP_LANGUAGE}}"
-          # python, golang, ruby, java, etc.
-
+  # ---------------------------------------------------------------------------
+  # Integration tests — matrix over language versions with unique MQ ports
+  # ---------------------------------------------------------------------------
   integration-tests:
-    name: "test: integration"
+    name: "test: integration (${{ matrix.version }})"
     runs-on: ubuntu-latest
-    needs: docs-only
-    steps:
-      - name: Docs-only short-circuit
-        if: needs.docs-only.outputs.docs-only == 'true'
-        run: echo "Docs-only changes detected; skipping integration tests."
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.integration-matrix || '{{INTEGRATION_MATRIX_DEFAULT}}') }}
+        # Each entry needs: version, project-suffix, qm1-rest-port, qm2-rest-port
+        # Example (Ruby):
+        #   [{"version":"3.4","project-suffix":"3-4","qm1-rest-port":"9463","qm2-rest-port":"9464"}]
+        # IMPORTANT: Use unique ports per repo to avoid conflicts with parallel CI runs.
+        # See docs/mq-container-local-dev.md for port allocation.
 
+    steps:
       - name: Checkout code
-        if: needs.docs-only.outputs.docs-only != 'true'
         uses: actions/checkout@v6
 
-      # {{LANGUAGE_SETUP}} (same as dependency-audit)
+      # {{LANGUAGE_SETUP}} (same as unit tests)
 
       - name: Setup MQ environment
-        if: needs.docs-only.outputs.docs-only != 'true'
         uses: wphillipmoore/mq-rest-admin-dev-environment/.github/actions/setup-mq@main
         with:
-          project-name: "{{PROJECT_NAME}}"
+          project-name: "{{PROJECT_NAME}}-${{ matrix.project-suffix }}"
+          qm1-rest-port: ${{ matrix.qm1-rest-port }}
+          qm2-rest-port: ${{ matrix.qm2-rest-port }}
 
       # {{TEST_COMMAND}}
-      # Example (Python):
-      #   - name: Run integration tests
-      #     if: needs.docs-only.outputs.docs-only != 'true'
-      #     run: |
-      #       MQ_SKIP_LIFECYCLE=1 \
-      #       PYMQREST_RUN_INTEGRATION=1 \
-      #       uv run pytest -m integration
-      # Example (Go):
-      #   - name: Run integration tests
-      #     if: needs.docs-only.outputs.docs-only != 'true'
-      #     run: |
-      #       MQ_SKIP_LIFECYCLE=1 \
-      #       MQ_REST_ADMIN_GO_RUN_INTEGRATION=1 \
-      #       go test -race -count=1 -tags=integration ./...
+      # Language-specific integration test runner
+      # Must set integration test env vars (e.g., MQ_REST_BASE_URL)
