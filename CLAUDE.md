@@ -73,6 +73,7 @@ container. Run before every commit. No MQ, no matrix.
 ```bash
 ./scripts/dev/test.sh        # Tests in dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}
 ./scripts/dev/lint.sh        # Lint checks in dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}
+./scripts/dev/typecheck.sh   # Type checking in dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}
 ./scripts/dev/audit.sh       # Security audit in dev-{{LANGUAGE_ID}}:{{LATEST_VERSION}}
 ```
 
@@ -202,7 +203,7 @@ st-commit --type docs --message "update README" --body "Expanded usage section" 
 
 ```bash
 st-submit-pr --issue 42 --summary "Add new feature"
-st-submit-pr --issue 42 --linkage Ref --summary "Update docs" --docs-only
+st-submit-pr --issue 42 --linkage Ref --summary "Update docs"
 st-submit-pr --issue 42 --summary "Fix bug" --notes "Tested on macOS and Linux"
 ```
 
@@ -211,7 +212,6 @@ st-submit-pr --issue 42 --summary "Fix bug" --notes "Tested on macOS and Linux"
 - `--linkage` (optional, default: `Fixes`): `Fixes|Closes|Resolves|Ref`
 - `--title` (optional): PR title (default: most recent commit subject)
 - `--notes` (optional): additional notes
-- `--docs-only` (optional): applies docs-only testing exception
 - `--dry-run` (optional): print generated PR without executing
 
 ## Key References
