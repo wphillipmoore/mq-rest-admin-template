@@ -40,14 +40,14 @@ jobs:
   # Security and standards (shared reusable workflow)
   # ---------------------------------------------------------------------------
   security-and-standards:
-    name: "security-and-standards"
-    if: ${{ inputs.run-security != 'false' }}
     uses: wphillipmoore/standard-actions/.github/workflows/ci-security.yml@develop
     with:
       language: "{{CODEQL_LANGUAGE}}"
       # If Semgrep uses a different language name (e.g., "golang" for Go),
       # uncomment and set:
       # semgrep-language: "{{SEMGREP_LANGUAGE}}"
+      run-standards: ${{ inputs.run-release-gates || 'true' }}
+      run-security: ${{ inputs.run-security || 'true' }}
     permissions:
       contents: read
       security-events: write
