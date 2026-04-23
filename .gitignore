@@ -25,3 +25,4 @@ htmlcov/
 
 # === Language-specific entries ===
 # Add entries for your language below this line.
+.worktrees/
