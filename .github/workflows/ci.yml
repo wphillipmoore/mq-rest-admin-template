@@ -40,6 +40,9 @@ jobs:
   # Security and standards (shared reusable workflow)
   # ---------------------------------------------------------------------------
   security-and-standards:
+    # Skip on the template repo itself — placeholders like {{CODEQL_LANGUAGE}}
+    # are only meaningful after instantiation into a real repo.
+    if: github.repository != 'wphillipmoore/mq-rest-admin-template'
     uses: wphillipmoore/standard-actions/.github/workflows/ci-security.yml@develop
     with:
       language: "{{CODEQL_LANGUAGE}}"
@@ -109,7 +112,9 @@ jobs:
   # ---------------------------------------------------------------------------
   release-gates:
     name: "release: gates"
-    if: ${{ inputs.run-release-gates != 'false' }}
+    # Skip on the template repo itself — version-command placeholders
+    # only resolve after instantiation.
+    if: ${{ inputs.run-release-gates != 'false' && github.repository != 'wphillipmoore/mq-rest-admin-template' }}
     runs-on: ubuntu-latest
     steps:
       - name: Skip on non-PR events
