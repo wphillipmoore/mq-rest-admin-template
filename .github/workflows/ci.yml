@@ -43,7 +43,7 @@ jobs:
     # Skip on the template repo itself — placeholders like {{CODEQL_LANGUAGE}}
     # are only meaningful after instantiation into a real repo.
     if: github.repository != 'wphillipmoore/mq-rest-admin-template'
-    uses: wphillipmoore/standard-actions/.github/workflows/ci-security.yml@develop
+    uses: wphillipmoore/standard-actions/.github/workflows/ci-security.yml@v1.3
     with:
       language: "{{CODEQL_LANGUAGE}}"
       # If Semgrep uses a different language name (e.g., "golang" for Go),
@@ -68,7 +68,7 @@ jobs:
       # {{LANGUAGE_SETUP}}
       # Example (Python):
       #   - name: Set up Python
-      #     uses: wphillipmoore/standard-actions/actions/python/setup@develop
+      #     uses: wphillipmoore/standard-actions/actions/python/setup@v1.3
       #     with:
       #       python-version: "3.14"
       # Example (Go):
@@ -129,7 +129,7 @@ jobs:
 
       - name: Version divergence gate (PRs targeting develop)
         if: github.event_name == 'pull_request' && github.base_ref == 'develop'
-        uses: wphillipmoore/standard-actions/actions/release-gates/version-divergence@develop
+        uses: wphillipmoore/standard-actions/actions/release-gates/version-divergence@v1.3
         with:
           head-version-command: "{{HEAD_VERSION_CMD}}"
           main-version-command: "{{MAIN_VERSION_CMD}}"
